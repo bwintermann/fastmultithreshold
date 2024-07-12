@@ -11,13 +11,18 @@ int main() {
 ,  -0.11517189,  0.37859723, -0.15901394,  0.29185423, -0.344608,    0.08293352 };
 
 
+    std::vector<int8_t> expectedResults = { 23,  17,  -5,   8, -16,   4,  11,  18,  -4,  -1,  17,  -4,  -3, -17,
+    4,  -5, -19,  11,  -5,  16,  -7,  12, -14,   3 };
+
+
     auto ret = referenceOuter(inputs);
 
-    std::cout << "\n";
+    std::cout << thresholds.size() << "\n";
 
     auto ret2 = multithreshold(inputs);
 
-    std::cout << std::boolalpha << "Reference equal to naive:" << (ret == ret2) << "\n";
+    std::cout << std::boolalpha << "Reference equal to expected:" << (ret == expectedResults) << "\n";
+    std::cout << std::boolalpha << "Naive equal to expected:    " << (expectedResults == ret2) << "\n";
 
 
     std::vector<int> out(ret.begin(), ret.end());
