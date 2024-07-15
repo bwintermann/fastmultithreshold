@@ -26,7 +26,10 @@ set(BENCHMARK_ENABLE_TESTING OFF)
 FetchContent_MakeAvailable(googlebenchmark)
 enable_testing()
 
+#OpenMP
+find_package(OpenMP)
+
 add_executable(benchmarks src/benchmarks.cpp)
-target_link_libraries(benchmarks PRIVATE benchmark::benchmark)
+target_link_libraries(benchmarks PRIVATE benchmark::benchmark OpenMP::OpenMP_CXX)
 
 add_executable(test_exe src/test.cpp)
