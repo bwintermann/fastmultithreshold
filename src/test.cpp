@@ -44,17 +44,26 @@ int main() {
     auto ret2 = multithreshold<24>(inputs);
     //std::vector<int8_t> ret2 = {};
 
-    std::cout << std::boolalpha << "Reference equal to expected:" << (ret == expectedResults) << "\n";
-    std::cout << std::boolalpha << "Naive equal to expected:    " << (expectedResults == ret2) << "\n";
+    std::cout << std::boolalpha << "Reference equal to expected:         " << (ret == expectedResults) << "\n";
+    std::cout << std::boolalpha << "Naive equal to expected:             " << (expectedResults == ret2) << "\n";
 
-    std::cout << std::boolalpha << "B4 Naive equal to expected:    " << (expectedResults2 == multithreshold<24>(inputs2)) << "\n";
+    std::cout << std::boolalpha << "B4 Naive equal to expected:          " << (expectedResults2 == multithreshold<24>(inputs2)) << "\n";
 
-    auto data = optimized::multithreshold<24>(inputs);
-    std::cout << std::boolalpha << "Optimized equal to expected:    " << (expectedResults == optimized::multithreshold<24>(inputs)) << "\n";
-    std::cout << std::boolalpha << "B4 Optimized equal to expected:    " << (expectedResults2 == optimized::multithreshold<24>(inputs2)) << "\n";
+    auto data = optimized::multithresholdLinearPerTensor(inputs);
+    std::cout << std::boolalpha << "Optimized equal to expected:         " << (expectedResults == optimized::multithreshold<24>(inputs)) << "\n";
+    std::cout << std::boolalpha << "B4 Optimized equal to expected:      " << (expectedResults2 == optimized::multithreshold<24>(inputs2)) << "\n";
+
+    std::cout << std::boolalpha << "Optimized LE equal to expected:      " << (expectedResults == optimized::multithresholdLE<24>(inputs)) << "\n";
+    std::cout << std::boolalpha << "B4 Optimized LE equal to expected:   " << (expectedResults2 == optimized::multithresholdLE<24>(inputs2)) << "\n";
+
+    std::cout << std::boolalpha << "Optimized LEMT equal to expected:    " << (expectedResults == optimized::multithresholdLEMT<24>(inputs)) << "\n";
+    std::cout << std::boolalpha << "B4 Optimized LEMT equal to expected: " << (expectedResults2 == optimized::multithresholdLEMT<24>(inputs2)) << "\n";
+
+    std::cout << std::boolalpha << "Optimized LinearPT equal to expected:    " << (expectedResults == optimized::multithresholdLinearPerTensor(inputs)) << "\n";
+    std::cout << std::boolalpha << "B4 Optimized LinearPT equal to expected: " << (expectedResults2 == optimized::multithresholdLinearPerTensor(inputs2)) << "\n";
 
     std::vector<int> out(data.begin(), data.end());
-    std::cout << "Optimized Out:" << join(out, ",") << "\n";
+    std::cout << "OptimizedLEMT Out:" << join(out, ",") << "\n";
 
     std::vector<int> out2(ret2.begin(), ret2.end());
     std::cout << "Naive Out:    " << join(out2, ",") << "\n";

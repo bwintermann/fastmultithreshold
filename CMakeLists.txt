@@ -33,3 +33,4 @@ add_executable(benchmarks src/benchmarks.cpp)
 target_link_libraries(benchmarks PRIVATE benchmark::benchmark OpenMP::OpenMP_CXX)
 
 add_executable(test_exe src/test.cpp)
+target_link_libraries(test_exe PRIVATE OpenMP::OpenMP_CXX)
