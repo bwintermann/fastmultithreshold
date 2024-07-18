@@ -25,7 +25,8 @@ namespace optimized {
 
     std::vector<int8_t> multithresholdLinearPerTensor(const std::vector<float>& inp) {
         std::vector<int8_t> ret(inp.size(), -128);
-        omp_set_num_threads(inp.size() >> 5);
+        std::size_t threadcount = std::min({ 24ul ,static_cast<std::size_t>(omp_get_num_procs()), FinnUtils::fastLog2(inp.size() / 24) });
+        omp_set_num_threads(threadcount);
 #pragma omp for simd
         for (size_t i = 0; i < inp.size(); ++i) {
             const int val = std::clamp(static_cast<int>((inp[i] - thresholds[0]) / a), 0, 254);
