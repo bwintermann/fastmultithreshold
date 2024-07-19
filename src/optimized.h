@@ -21,7 +21,7 @@ namespace FinnUtils {
 
 namespace optimized {
 
-    constexpr float a = (thresholds[254] - thresholds[0]) / 255;
+    constexpr float a = 255 / (thresholds[254] - thresholds[0]);
 
     std::vector<int8_t> multithresholdLinearPerTensor(const std::vector<float>& inp) {
         std::vector<int8_t> ret(inp.size(), -128);
@@ -29,7 +29,7 @@ namespace optimized {
         omp_set_num_threads(threadcount);
 #pragma omp for simd
         for (size_t i = 0; i < inp.size(); ++i) {
-            const int val = std::clamp(static_cast<int>((inp[i] - thresholds[0]) / a), 0, 254);
+            const int val = std::clamp(static_cast<int>((inp[i] - thresholds[0]) * a), 0, 254);
             ret[i] += (thresholds[val] < inp[i]) ? val + 1 : val;
         }
         return ret;
