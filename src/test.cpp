@@ -67,4 +67,11 @@ int main() {
 
     std::vector<int> out2(ret2.begin(), ret2.end());
     std::cout << "Naive Out:    " << join(out2, ",") << "\n";
+
+    std::cout << "Clamp Tests:\n";
+    std::cout << "Inp: -1 Out: " << FinnUtils::clamp<0,254>(-1) << "\n";
+    std::cout << "Inp: 0 Out: " << FinnUtils::clamp<0,254>(0) << "\n";
+    std::cout << "Inp: 64 Out: " << FinnUtils::clamp<0,254>(64) << "\n";
+    std::cout << "Inp: 254 Out: " << FinnUtils::clamp<0,254>(254) << "\n";
+    std::cout << "Inp: 255 Out: " << FinnUtils::clamp<0,254>(255) << "\n";
 }
