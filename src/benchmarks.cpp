@@ -70,6 +70,20 @@ void BM_optimizedLinearPTB4096(benchmark::State& state) {
   }
 }
 
+void BM_optimizedLinearPTOPB4096(benchmark::State& state) {
+  for (auto _ : state) {
+    auto out = optimized::multithresholdLinearPerTensorOP(inp);
+    benchmark::DoNotOptimize(out);
+  }
+}
+
+void BM_optimizedLinearPTOPB1(benchmark::State& state) {
+  for (auto _ : state) {
+    auto out = optimized::multithresholdLinearPerTensorOP(in);
+    benchmark::DoNotOptimize(out);
+  }
+}
+
 void BM_optimizedLinearPTICB4096(benchmark::State& state) {
   for (auto _ : state) {
     auto out = optimized::multithresholdLinearPerTensorIC(inp);
@@ -121,23 +135,23 @@ void BM_optimizedLEMTB4096(benchmark::State& state) {
   }
 }
 
-void BM_intclamp(benchmark::State& state){
+void BM_intclamp(benchmark::State& state) {
   std::vector<int> inp(1000);
   std::iota(inp.begin(), inp.end(), -5);
-  for(auto _ : state) {
-    for(auto&& elem : inp){
-      auto out = FinnUtils::clamp<0,254>(elem);
+  for (auto _ : state) {
+    for (auto&& elem : inp) {
+      auto out = FinnUtils::clamp<0, 254>(elem);
       benchmark::DoNotOptimize(out);
     }
   }
 }
 
-void BM_stdclamp(benchmark::State& state){
+void BM_stdclamp(benchmark::State& state) {
   std::vector<int> inp(1000);
   std::iota(inp.begin(), inp.end(), -5);
-  for(auto _ : state) {
-    for(auto&& elem : inp){
-      auto out = std::clamp(elem,0,254);
+  for (auto _ : state) {
+    for (auto&& elem : inp) {
+      auto out = std::clamp(elem, 0, 254);
       benchmark::DoNotOptimize(out);
     }
   }
@@ -151,12 +165,14 @@ BENCHMARK(BM_optimizedLEMTB1)->Iterations(1000);
 BENCHMARK(BM_naiveB1)->Iterations(1000);
 BENCHMARK(BM_optimizedB1)->Iterations(1000);
 BENCHMARK(BM_optimizedLinearPTB1)->Iterations(1000);
+BENCHMARK(BM_optimizedLinearPTOPB1)->Iterations(1000);
 BENCHMARK(BM_referenceB4096)->Iterations(1000);
 BENCHMARK(BM_optimizedB4096)->Iterations(1000);
 BENCHMARK(BM_naiveB4096)->Iterations(1000);
 BENCHMARK(BM_optimizedLEB4096)->Iterations(1000);
 BENCHMARK(BM_optimizedLEMTB4096)->Iterations(1000);
 BENCHMARK(BM_optimizedLinearPTB4096)->Iterations(1000);
+BENCHMARK(BM_optimizedLinearPTOPB4096)->Iterations(1000);
 BENCHMARK(BM_optimizedLinearPTICB4096)->Iterations(1000);
 
 BENCHMARK(BM_intclamp)->Iterations(1000);
