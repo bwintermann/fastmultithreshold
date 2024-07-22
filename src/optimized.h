@@ -38,19 +38,15 @@ namespace optimized {
 
     std::vector<int8_t> multithresholdLinearPerTensor(const std::vector<float>& inp) {
         const size_t size = inp.size();
-        constexpr size_t padding = 4;
-        //False sharing? Padding von protoRet und evtl. ret als abhilfe?
         std::vector<int8_t> ret(size, -128);
-        std::vector<int> protoRet(size * 4);
-        std::size_t threadcount = std::min({ 24ul ,static_cast<std::size_t>(omp_get_num_procs()), FinnUtils::fastLog2(inp.size() >> 4) });
-        omp_set_num_threads(threadcount);
-#pragma omp for simd
+        std::vector<int> protoRet(size);
+#pragma omp simd
         for (size_t i = 0; i < size; ++i) {
-            protoRet[i * 4] = std::clamp(static_cast<int>((inp[i] - thresholds[0]) * a), 0, 254);
+            protoRet[i] = std::clamp(static_cast<int>((inp[i] - thresholds[0]) * a), 0, 254);
         }
 #pragma omp simd
         for (size_t i = 0; i < size; ++i) {
-            const int val = protoRet[i * 4];
+            const int val = protoRet[i];
             ret[i] += static_cast<int>(inp[i] - thresholds[val] + 1.0f) + val;
         }
         return ret;
