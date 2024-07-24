@@ -4,6 +4,7 @@
 #include <ios>
 #include "join.hpp"
 #include "optimized.h"
+#include "lossy.hpp"
 
 int main() {
     std::vector<float> inputs = { 0.5527185,0.39846906, -0.11766014,  0.19299345, -0.38549745,  0.08441927
