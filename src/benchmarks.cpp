@@ -4,6 +4,7 @@
 #include <random>
 #include "lossy.hpp"
 #include <span>
+#include <immintrin.h>
 
 std::vector<float> base = { 0.5527185,0.39846906, -0.11766014,  0.19299345, -0.38549745,  0.08441927
 ,   0.26880047,  0.42681944, -0.10539523, -0.02164167,  0.41527015, -0.09802981
@@ -60,20 +61,79 @@ public:
 };
 
 
-std::vector<int8_t> lossy_constexpr_lookup(std::vector<float> &inputs) {
-  std::vector<int8_t> v(inputs.size(), 0);
+__m256i_u get_indices(const float* inputs) {
+  const __m256 scales = _mm256_castsi256_ps(_mm256_set_epi32(scale, scale, scale, scale, scale, scale, scale, scale));
+  const __m256 shifts = _mm256_castsi256_ps(_mm256_set_epi32(shift, shift, shift, shift, shift, shift, shift, shift)); 
+  const __m256 inputs_reg = _mm256_loadu_ps(inputs);
+  return _mm256_castps_si256(_mm256_fmadd_ps(inputs_reg, scales, shifts));
+}
+
+std::vector<int8_t> lossy_simd_lookup(std::vector<float> &inputs) {
+  if (inputs.size() % 8 != 0) {
+    throw std::runtime_error("Cannot do simd lookup on non-multiples of 8");
+  }
+  __m256i_u* indices = (__m256i_u*) malloc(sizeof(__m256i_u) * inputs.size() / 8);
+  for (int i = 0; i < inputs.size() / 8; i++) {
+    indices[i] = get_indices(inputs.data() + i * 8);
+  }
+
+  int8_t last = table[max_scaled - 1];
+  int8_t first = table[0];
+  std::vector<int8_t> v(inputs.size(), first); // Pre initialize to table[0], this way we can avoid one more comparison
   omp_set_num_threads(threadcount);
 
 #pragma omp parallel for
   for (int index = 0; index < inputs.size(); index++) {
-    if (inputs[index] > max_float) {
-      v[index] = table[max_scaled-1];
-    } else if (inputs[index] < min_float) {
-      v[index] = table[0];
+    float i = inputs[index];
+    if (i > max_float) {
+      v[index] = last;
+    } else if (i < min_float) {
+      continue;
     } else {
-      v[index] = table[static_cast<unsigned int>(inputs[index] * scale + shift)];
+      v[index] = table[((float*) indices)[index]];
     }
   }
+  return v;
+}
+
+
+
+std::vector<int8_t> lossy_constexpr_lookup(std::vector<float> &inputs) {
+  int8_t last = table[max_scaled - 1];
+  int8_t first = table[0];
+  std::vector<int8_t> v(inputs.size(), first); // Pre initialize to table[0], this way we can avoid one more comparison
+  omp_set_num_threads(threadcount);
+
+#pragma omp parallel for
+  for (int index = 0; index < inputs.size(); index++) {
+    float i = inputs[index];
+    if (i > max_float) {
+      v[index] = last;
+    } else if (i < min_float) {
+      continue;
+    } else {
+      v[index] = table[static_cast<unsigned int>(i * scale + shift)];
+    }
+  }
+  return v;
+}
+
+std::vector<int8_t> lossy_constexpr_lookup_std(std::vector<float> &inputs) {
+  std::vector<int8_t> v(inputs.size(), 0);
+  std::transform(
+    std::execution::par_unseq,
+    inputs.begin(),
+    inputs.end(),
+    v.begin(),
+    [](float i) {
+      if (i > max_float) {
+        return table[max_scaled-i];
+      } else if (i < min_float) {
+        return table[0];
+      }
+      return table[static_cast<unsigned int>(i * scale + shift)];
+    }
+  );
   return v;
 }
 
@@ -154,6 +214,27 @@ BENCHMARK_F(LossyFixture, BM_lossy4096_precision_digits_4)(benchmark::State& sta
 void BM_lossy4096_precision_digits_4_constexpr(benchmark::State& state) {
   for (auto _ : state) {
     auto out = lossy_constexpr_lookup(inp);
+    benchmark::DoNotOptimize(out);
+  }
+}
+
+void BM_lossy4096_precision_digits_4_constexpr_simd(benchmark::State& state) {
+  for (auto _ : state) {
+    auto out = lossy_simd_lookup(inp);
+    benchmark::DoNotOptimize(out);
+  }
+}
+
+void BM_lossy4096_precision_digits_4_constexpr_std(benchmark::State& state) {
+  for (auto _ : state) {
+    auto out = lossy_constexpr_lookup_std(inp);
+    benchmark::DoNotOptimize(out);
+  }
+}
+
+void BM_lossy4096_precision_digits_4_constexpr_unparallel(benchmark::State& state) {
+  for (auto _ : state) {
+    auto out = lossy_constexpr_lookup_unparallel(inp);
     benchmark::DoNotOptimize(out);
   }
 }
@@ -264,6 +345,9 @@ BENCHMARK(BM_optimizedLinearPTB1)->Iterations(1000);
 BENCHMARK(BM_optimizedLinearPTOPB1)->Iterations(1000);
 BENCHMARK(BM_referenceB4096)->Iterations(1000);
 BENCHMARK(BM_lossy4096_precision_digits_4_constexpr)->Iterations(1000);
+BENCHMARK(BM_lossy4096_precision_digits_4_constexpr_simd)->Iterations(1000);
+BENCHMARK(BM_lossy4096_precision_digits_4_constexpr_std)->Iterations(1000);
+BENCHMARK(BM_lossy4096_precision_digits_4_constexpr_unparallel)->Iterations(1000);
 BENCHMARK(BM_optimizedB4096)->Iterations(1000);
 BENCHMARK(BM_naiveB4096)->Iterations(1000);
 BENCHMARK(BM_optimizedLEB4096)->Iterations(1000);
@@ -282,6 +366,15 @@ BENCHMARK(BM_stdclamp)->Iterations(1000);
 int main(int argc, char** argv) {
   in = getBatchInputs(1);
   inp = getBatchInputs(4096);
+
+  auto v1 = lossy_constexpr_lookup(inp);
+  auto v2 = lossy_simd_lookup(inp);
+  for (int i = 0; i < v1.size(); i++) {
+    if (v1[i] != v2[i]) {
+      std::cout << "non equal: " << static_cast<unsigned int>(v1[i]) << " "  << static_cast<unsigned int>(v2[i]) << std::endl;
+    }
+  }
+
   ::benchmark::Initialize(&argc, argv);
   ::benchmark::RunSpecifiedBenchmarks();
 }
