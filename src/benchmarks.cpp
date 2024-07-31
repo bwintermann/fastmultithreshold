@@ -41,6 +41,8 @@ constexpr float float_range = max_float - min_float;
 constexpr unsigned int scale = 10000;
 constexpr unsigned int shift = lossy::_get_shift(scale, min_float);
 constexpr unsigned int max_scaled = lossy::_get_max_scale(scale, float_range);
+constexpr float scale_f = static_cast<float>(scale);
+constexpr float shift_f = static_cast<float>(shift);
 
 constexpr auto table = lossy::_create_lookup_table<int8_t, float, 255, scale, shift, max_scaled>(first_thresholds);
 
@@ -49,38 +51,36 @@ constexpr auto table = lossy::_create_lookup_table<int8_t, float, 255, scale, sh
 /**
  * Get the indices of the next eight inputs from the given pointer
  */
-__m256i_u get_indices(const float *inputs)
+__m256i get_indices(const float *inputs)
 {
-  const __m256 scales = _mm256_castsi256_ps(_mm256_set_epi32(scale, scale, scale, scale, scale, scale, scale, scale));
-  const __m256 shifts = _mm256_castsi256_ps(_mm256_set_epi32(shift, shift, shift, shift, shift, shift, shift, shift));
+  const __m256 scales = _mm256_set_ps(scale_f, scale_f, scale_f, scale_f, scale_f, scale_f, scale_f, scale_f);
+  const __m256 shifts = _mm256_set_ps(shift_f, shift_f, shift_f, shift_f, shift_f, shift_f, shift_f, shift_f);
   const __m256 inputs_reg = _mm256_loadu_ps(inputs);
-  return _mm256_castps_si256(_mm256_fmadd_ps(inputs_reg, scales, shifts));
+  auto y = _mm256_fmadd_ps(inputs_reg, scales, shifts);
+  auto x = _mm256_cvtps_epi32(y);
+  //std::cout << "Scales: " << static_cast<float>(scales[0]) << "\nShifts: " << static_cast<float>(shifts[0]) << "\nInputs: " << static_cast<float>(inputs_reg[0]) << "\nFused MADD: " << static_cast<float>(y[0]) << "\nCast res: " << static_cast<float>(x[0]) << std::endl;
+  return x;
 }
 
 /**
  * Do a simd lookup on the given inputs
  */
 template <typename T>
-std::vector<T> simd_lookup(std::vector<float> &inputs)
-{
+std::vector<T> simd_lookup(std::vector<float> &inputs) {
   // Make sure we can easily use simd intrinsics
-  if (inputs.size() % 8 != 0)
-  {
+  if (inputs.size() % 8 != 0) {
     throw std::runtime_error("Cannot do simd lookup on non-multiples of 8");
   }
 
-  std::cout << "A" << std::endl;
-
   // Calculate all indices
   std::vector<unsigned int> indices(inputs.size(), 1);
-  for (int i = 0; i < inputs.size() / 8; i++)
-  {
-    _mm256_storeu_si256(reinterpret_cast<__m256i_u *>(indices.data()) + i, get_indices(inputs.data() + i * 8));
-  }
-
-  for (int i = 0; i < 40; i++) {
-    std::cout << inputs[i] << " ";
-    std::cout << indices[i] << std::endl;
+  for (int i = 0; i < inputs.size() / 8; i++) {
+    _mm256_storeu_si256(
+      reinterpret_cast<__m256i_u *>(indices.data() + i * 8), 
+      get_indices(
+        inputs.data() + i * 8
+      )
+    );
   }
 
   // Instantiate needed result vectors and constants
@@ -88,33 +88,24 @@ std::vector<T> simd_lookup(std::vector<float> &inputs)
   const T first = table[0];
   std::vector<T> v(inputs.size(), first); // Pre initialize to table[0], this way we can avoid one more comparison
 
-    std::cout << "C" << std::endl;
-    std::cout << indices.size() << std::endl;
-    std::cout << inputs.size() << std::endl;
-
+  // Getting the actual values
   omp_set_num_threads(threadcount);
-//#pragma omp parallel for
-  for (int index = 0; index < inputs.size(); index++)
-  {
+#pragma omp parallel for
+  for (int index = 0; index < inputs.size(); index++) {
     float i = inputs[index];
-    std::cout << "D" << std::endl;
-    std::cout << indices[i] << std::endl;
-    if (i > max_float)
-    {
+    if (i > max_float) {
       v[index] = last;
-    }
-    else if (i < min_float)
-    {
+    } else if (i < min_float) {
       continue;
-    }
-    else
-    {
+    } else {
       v[index] = table[indices[i]];
     }
   }
-    std::cout << "E" << std::endl;
   return v;
 }
+
+
+
 
 
 
@@ -403,16 +394,16 @@ BENCHMARK(BM_stdclamp)->Iterations(1000);
 int main(int argc, char** argv) {
   in = getBatchInputs(1);
   inp = getBatchInputs(4096);
-
-  //auto v1 = lossy_constexpr_lookup(inp);
-  std::vector<int8_t> v2 = simd_lookup<int8_t>(inp);
-  /*
+  
+  auto v1 = lossy_constexpr_lookup(in);
+  auto v2 = simd_lookup<int8_t>(in);
   for (int i = 0; i < v1.size(); i++) {
     if (v1[i] != v2[i]) {
-      std::cout << "non equal: " << static_cast<unsigned int>(v1[i]) << " "  << static_cast<unsigned int>(v2[i]) << std::endl;
+      std::cout << "\n\ninput: " << in[i] << std::endl;
+      std::cout << "scale shift: " << scale_f << ", " << shift_f << std::endl;
+      std::cout << "ne: " << static_cast<unsigned int>(v1[i]) << " - " << static_cast<unsigned int>(v2[i]) << std::endl;
     }
   }
-  */
 
   ::benchmark::Initialize(&argc, argv);
   ::benchmark::RunSpecifiedBenchmarks();
